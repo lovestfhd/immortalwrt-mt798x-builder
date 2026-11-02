@@ -1,0 +1,459 @@
+From 9aa563074f215191fc905ff9a8a92e9a24984a93 Mon Sep 17 00:00:00 2001
+From: wen liu <wen@debian-6900hx.deb-amd>
+Date: Mon, 2 Nov 2026 22:15:28 +0800
+Subject: [PATCH] mediatek: filogic: add support for BeeconX SEED One
+
+---
+ .../uboot-envtools/files/mediatek_filogic     |   4 +
+ .../lib/preinit/05_set_preinit_iface          |   4 +
+ .../linux/mediatek/dts/mt7981b-bx-seedone.dts | 237 ++++++++++++++++++
+ .../filogic/base-files/etc/board.d/01_leds    |   3 +
+ .../filogic/base-files/etc/board.d/02_network |   6 +
+ .../lib/preinit/82_seedone_wifi_e2p           |  95 +++++++
+ target/linux/mediatek/image/filogic.mk        |  16 ++
+ 7 files changed, 365 insertions(+)
+ create mode 100644 target/linux/mediatek/dts/mt7981b-bx-seedone.dts
+ create mode 100755 target/linux/mediatek/filogic/base-files/lib/preinit/82_seedone_wifi_e2p
+
+diff --git a/package/boot/uboot-envtools/files/mediatek_filogic b/package/boot/uboot-envtools/files/mediatek_filogic
+index d2bea6ef0e..a3973a720f 100644
+--- a/package/boot/uboot-envtools/files/mediatek_filogic
++++ b/package/boot/uboot-envtools/files/mediatek_filogic
+@@ -146,6 +146,10 @@ gatonetworks,gdsp)
+ glinet,gl-mt3000)
+ 	ubootenv_add_uci_config "/dev/mtd1" "0x0" "0x80000" "0x20000"
+ 	;;
++bx,seedone)
++	local envdev=/dev/mtd$(find_mtd_index "u-boot-env")
++	ubootenv_add_uci_config "$envdev" "0x0" "0x20000" "0x20000"
++	;;
+ mercusys,mr80x-v3|\
+ mercusys,mr90x-v1|\
+ routerich,ax3000|\
+diff --git a/target/linux/mediatek/base-files/lib/preinit/05_set_preinit_iface b/target/linux/mediatek/base-files/lib/preinit/05_set_preinit_iface
+index 2632fe71a9..fb83f11c5d 100644
+--- a/target/linux/mediatek/base-files/lib/preinit/05_set_preinit_iface
++++ b/target/linux/mediatek/base-files/lib/preinit/05_set_preinit_iface
+@@ -11,6 +11,10 @@ set_preinit_iface() {
+ 		echo 0 > /sys/class/gpio/modem_power/value
+ 		echo 1 > /sys/class/gpio/modem_power/value
+ 		;;
++	bx,seedone)
++		ip link set eth1 up
++		ifname=eth1
++		;;
+ 	cudy,ap3000outdoor-v1|\
+ 	cudy,re3000-v1|\
+ 	ubnt,unifi-6-lr|\
+diff --git a/target/linux/mediatek/dts/mt7981b-bx-seedone.dts b/target/linux/mediatek/dts/mt7981b-bx-seedone.dts
+new file mode 100644
+index 0000000000..acf8c23ad4
+--- /dev/null
++++ b/target/linux/mediatek/dts/mt7981b-bx-seedone.dts
+@@ -0,0 +1,237 @@
++﻿// SPDX-License-Identifier: (GPL-2.0 OR MIT)
++
++/dts-v1/;
++
++#include "mt7981.dtsi"
++
++/ {
++	model = "BeeconX SEED One";
++	compatible = "bx,seedone", "mediatek,mt7981";
++
++	aliases {
++		label-mac-device = &gmac1;
++		led-boot = &led_blue;
++		led-failsafe = &led_white;
++		led-running = &led_blue;
++		led-upgrade = &led_white;
++		serial0 = &uart0;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	gpio-keys {
++		compatible = "gpio-keys";
++
++		reset {
++			label = "reset";
++			linux,code = <KEY_RESTART>;
++			gpios = <&pio 1 GPIO_ACTIVE_LOW>;
++		};
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		led_blue: run {
++			label = "blue:run";
++			gpios = <&pio 31 GPIO_ACTIVE_LOW>;
++			default-state = "on";
++		};
++
++		led_white: system {
++			label = "white:system";
++			gpios = <&pio 30 GPIO_ACTIVE_LOW>;
++		};
++	};
++
++	fan_5v: regulator-fan-5v {
++		compatible = "regulator-fixed";
++		regulator-name = "fan";
++		regulator-min-microvolt = <5000000>;
++		regulator-max-microvolt = <5000000>;
++		gpios = <&pio 28 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++		regulator-boot-on;
++	};
++
++	usb_vbus: regulator-usb-vbus {
++		compatible = "regulator-fixed";
++		regulator-name = "usb_vbus";
++		regulator-min-microvolt = <5000000>;
++		regulator-max-microvolt = <5000000>;
++		gpios = <&pio 12 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++		regulator-boot-on;
++	};
++};
++
++&uart0 {
++	status = "okay";
++};
++
++&watchdog {
++	status = "okay";
++};
++
++&eth {
++	pinctrl-names = "default";
++	pinctrl-0 = <&mdio_pins>;
++
++	status = "okay";
++
++	gmac0: mac@0 {
++		compatible = "mediatek,eth-mac";
++		reg = <0>;
++		phy-mode = "2500base-x";
++		phy-handle = <&phy0>;
++		nvmem-cells = <&macaddr 3>;
++		nvmem-cell-names = "mac-address";
++	};
++
++	gmac1: mac@1 {
++		compatible = "mediatek,eth-mac";
++		reg = <1>;
++		phy-mode = "gmii";
++		phy-handle = <&int_gbe_phy>;
++		nvmem-cells = <&macaddr 0>;
++		nvmem-cell-names = "mac-address";
++	};
++};
++
++&mdio_bus {
++	reset-gpios = <&pio 14 GPIO_ACTIVE_LOW>;
++	reset-delay-us = <600>;
++	reset-post-delay-us = <20000>;
++
++	phy0: ethernet-phy@5 {
++		reg = <5>;
++		compatible = "ethernet-phy-ieee802.3-c45";
++		phy-mode = "2500base-x";
++	};
++};
++
++&pwm {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pwm_pins>;
++
++	status = "okay";
++};
++
++&fan {
++	pwms = <&pwm 0 40000 0>;
++	fan-supply = <&fan_5v>;
++	interrupt-parent = <&pio>;
++	interrupts = <29 IRQ_TYPE_EDGE_RISING>;
++	status = "okay";
++};
++
++&spi0 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&spi0_flash_pins>;
++	status = "okay";
++
++	spi_nand: flash@0 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		compatible = "spi-nand";
++		reg = <0>;
++		spi-max-frequency = <52000000>;
++
++		spi-cal-enable;
++		spi-cal-mode = "read-data";
++		spi-cal-datalen = <7>;
++		spi-cal-data = /bits/ 8 <0x53 0x50 0x49 0x4E 0x41 0x4E 0x44>;
++		spi-cal-addrlen = <5>;
++		spi-cal-addr = /bits/ 32 <0x0 0x0 0x0 0x0 0x0>;
++
++		spi-tx-bus-width = <4>;
++		spi-rx-bus-width = <4>;
++		mediatek,nmbm;
++		mediatek,bmt-max-ratio = <1>;
++		mediatek,bmt-max-reserved-blocks = <64>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 {
++				label = "BL2";
++				reg = <0x00000 0x0100000>;
++				read-only;
++			};
++
++			partition@100000 {
++				label = "u-boot-env";
++				reg = <0x0100000 0x0080000>;
++			};
++
++			factory: partition@180000 {
++				label = "Factory";
++				reg = <0x180000 0x0200000>;
++
++				nvmem-layout {
++					compatible = "fixed-layout";
++					#address-cells = <1>;
++					#size-cells = <1>;
++
++					macaddr: macaddr@a {
++						compatible = "mac-base";
++						reg = <0xa 0x6>;
++						#nvmem-cell-cells = <1>;
++					};
++				};
++			};
++
++			partition@380000 {
++				label = "FIP";
++				reg = <0x380000 0x0200000>;
++				read-only;
++			};
++
++			partition@580000 {
++				label = "art";
++				reg = <0x580000 0x0040000>;
++				read-only;
++			};
++
++			partition@25c0000 {
++				label = "ubi";
++				reg = <0x25c0000 0x0c000000>;
++				compatible = "linux,ubi";
++			};
++		};
++	};
++};
++
++&pio {
++	spi0_flash_pins: spi0-pins {
++		mux {
++			function = "spi";
++			groups = "spi0", "spi0_wp_hold";
++		};
++	};
++
++	pwm_pins: pwm0-pins {
++		mux {
++			function = "pwm";
++			groups = "pwm0_1";
++		};
++	};
++};
++
++&usb_phy {
++	status = "okay";
++};
++
++&xhci {
++	vbus-supply = <&usb_vbus>;
++	status = "okay";
++};
++
++&wifi {
++	mediatek,mtd-eeprom = <&factory 0x0>;
++	status = "okay";
++};
+diff --git a/target/linux/mediatek/filogic/base-files/etc/board.d/01_leds b/target/linux/mediatek/filogic/base-files/etc/board.d/01_leds
+index 654aa5ec9a..25119c0019 100644
+--- a/target/linux/mediatek/filogic/base-files/etc/board.d/01_leds
++++ b/target/linux/mediatek/filogic/base-files/etc/board.d/01_leds
+@@ -225,6 +225,9 @@ zyxel,ex5601-t0-ubootmod)
+ 	ucidef_set_led_netdev "wlan2g" "WLAN2G" "wt:wifi:blue" "ra0" "link tx rx"
+ 	ucidef_set_led_netdev "wlan5g" "WLAN5G" "wt:wifi:blue" "rax0" "link tx rx"
+ 	;;
++bx,seedone)
++	ucidef_set_led_netdev "wan" "WAN" "blue:run" "eth0" "link tx rx"
++	;;
+ esac
+ 
+ board_config_flush
+diff --git a/target/linux/mediatek/filogic/base-files/etc/board.d/02_network b/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
+index 7b07f83f78..486d741046 100644
+--- a/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
++++ b/target/linux/mediatek/filogic/base-files/etc/board.d/02_network
+@@ -118,6 +118,7 @@ mediatek_setup_interfaces()
+ 	cudy,tr3000-v1-ubootmod|\
+ 	cudy,tr3000-v1-256mb|\
+ 	glinet,gl-mt2500|\
++	bx,seedone|\
+ 	glinet,gl-mt3000|\
+ 	glinet,gl-x3000|\
+ 	glinet,gl-xe3000|\
+@@ -223,6 +224,11 @@ mediatek_setup_macs()
+ 		lan_mac=$(macaddr_add "$wan_mac" 1)
+ 		label_mac=$wan_mac
+ 		;;
++	bx,seedone)
++		label_mac=$(cat /sys/class/net/eth1/address)
++		lan_mac=$label_mac
++		wan_mac=$(macaddr_add "$lan_mac" 3)
++		;;
+ 	mercusys,mr80x-v3)
+ 		mac_dirty=$(cat "/tmp/tp_data/default-mac" | sed -n 's/^'"MAC"'://p')
+ 		label_mac=$(macaddr_canonicalize "$mac_dirty")
+diff --git a/target/linux/mediatek/filogic/base-files/lib/preinit/82_seedone_wifi_e2p b/target/linux/mediatek/filogic/base-files/lib/preinit/82_seedone_wifi_e2p
+new file mode 100755
+index 0000000000..6e3bf197cc
+--- /dev/null
++++ b/target/linux/mediatek/filogic/base-files/lib/preinit/82_seedone_wifi_e2p
+@@ -0,0 +1,95 @@
++#!/bin/sh
++#
++# BeeconMini SEED One -- pull the per-unit WiFi calibration into
++# /lib/firmware/e2p and align the declared eeprom size.
++#
++# Why this exists
++# ---------------
++# The closed-source mt_wifi driver gets its calibration through
++# request_firmware("/lib/firmware/e2p"). On this board the real, per-unit
++# calibration lives in the "Factory" MTD partition from offset 0, with a size
++# of 0xA0000 (640 KiB). The vendor iStoreOS does exactly the same thing in
++# /lib/preinit/82_1_wifi_e2p.
++#
++# Our images ship a *generic* /lib/firmware/e2p. The vendor guard
++# ("[ -e $FW ] && return") must therefore NOT be copied -- on our images that
++# guard would make the extraction a permanent no-op.
++#
++# Verified against a real iStoreOS install on SEED One:
++#   Factory[0x00000..0xA0000] -> e2p
++#   first 4 bytes "81 79 00 00" (== 0x00007981, i.e. "7981")
++#   MAC at offset 0x0A == "einfo mac" FLASH_MAC == eth1 address
++#   md5 of the extracted blob: cd1ad8a76a7e4170d79e34e8d73d5f02
++#   vendor INDEX0_EEPROM_offset=0x0, INDEX0_EEPROM_size=0xA0000
++#
++# Ordering: this file sorts after 80_mount_root (so the overlay is live) and
++# after 02_sysinfo (so board_name is available), and before 90_extract_caldata.
++#
++
++. /lib/functions.sh
++. /lib/functions/system.sh
++
++SEEDONE_E2P_FW=/lib/firmware/e2p
++SEEDONE_E2P_SIZE=655360        # 0xA0000 = 640 KiB, taken from Factory@0
++SEEDONE_E2P_TMP=/tmp/.seedone-e2p
++SEEDONE_L1PROFILE=/etc/wireless/l1profile.dat
++
++seedone_extract_e2p() {
++	local board mtd size magic
++
++	board=$(board_name)
++	case "$board" in
++	bx,seedone) ;;
++	*) return 0 ;;
++	esac
++
++	mtd=$(find_mtd_part Factory)
++	[ -n "$mtd" ] || {
++		echo "seedone-e2p: Factory partition not found"
++		return 1
++	}
++	# find_mtd_part hands back /dev/mtdblockN; the char device is preferred
++	mtd=$(echo "$mtd" | sed -e 's/mtdblock/mtd/')
++
++	mkdir -p /lib/firmware
++
++	# Stage into tmpfs first: the shipped image must never end up without
++	# an e2p file, so only replace it after a complete read.
++	rm -f "$SEEDONE_E2P_TMP"
++	if ! dd if="$mtd" of="$SEEDONE_E2P_TMP" bs=$SEEDONE_E2P_SIZE count=1 2>/dev/null; then
++		echo "seedone-e2p: dd from $mtd failed, keeping shipped e2p"
++		rm -f "$SEEDONE_E2P_TMP"
++		return 1
++	fi
++
++	size=$(wc -c < "$SEEDONE_E2P_TMP")
++	if [ "$size" != "$SEEDONE_E2P_SIZE" ]; then
++		echo "seedone-e2p: short read ($size != $SEEDONE_E2P_SIZE), keeping shipped e2p"
++		rm -f "$SEEDONE_E2P_TMP"
++		return 1
++	fi
++
++	# Remove first: overwriting in place would force overlayfs to copy the
++	# shipped 2 MiB generic blob up into the upper layer for nothing.
++	rm -f "$SEEDONE_E2P_FW"
++	mv "$SEEDONE_E2P_TMP" "$SEEDONE_E2P_FW"
++
++	magic=$(hexdump -v -n 4 -e '4/1 "%02x "' "$SEEDONE_E2P_FW" 2>/dev/null)
++	echo "seedone-e2p: extracted $size bytes from $mtd (magic $magic, expect 81 79 00 00)"
++	return 0
++}
++
++seedone_fix_l1profile() {
++	# wifi-dats ships INDEX0_EEPROM_size=0x5000 (20 KiB) while the real blob
++	# is 640 KiB; without this the driver would only ever read the first
++	# 20 KiB of it.
++	[ -f "$SEEDONE_L1PROFILE" ] || return 0
++	grep -q '^INDEX0_EEPROM_size=0xA0000$' "$SEEDONE_L1PROFILE" && return 0
++
++	sed -i 's/^INDEX0_EEPROM_size=.*/INDEX0_EEPROM_size=0xA0000/' "$SEEDONE_L1PROFILE"
++	echo "seedone-e2p: l1profile EEPROM size realigned to 0xA0000"
++	return 0
++}
++
++boot_hook_add preinit_main seedone_extract_e2p
++boot_hook_add preinit_main seedone_fix_l1profile
+diff --git a/target/linux/mediatek/image/filogic.mk b/target/linux/mediatek/image/filogic.mk
+index 295e5a2327..2ecd4a8583 100644
+--- a/target/linux/mediatek/image/filogic.mk
++++ b/target/linux/mediatek/image/filogic.mk
+@@ -1087,6 +1087,22 @@ define Device/glinet_gl-mt3000
+ endef
+ TARGET_DEVICES += glinet_gl-mt3000
+ 
++define Device/bx_seedone
++  DEVICE_VENDOR := BeeconX
++  DEVICE_MODEL := SEED One (192M, slot 2)
++  DEVICE_DTS := mt7981b-bx-seedone
++  DEVICE_DTS_DIR := ../dts
++  SUPPORTED_DEVICES += bx,seedone mt7981-beeconx-seedone mediatek,mt7981-spim-snand-gsw-rfb
++  DEVICE_PACKAGES := kmod-hwmon-pwmfan kmod-usb3 automount
++  UBINIZE_OPTS := -E 5
++  BLOCKSIZE := 128k
++  PAGESIZE := 2048
++  IMAGE_SIZE := 196608k
++  KERNEL_IN_UBI := 1
++  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
++endef
++TARGET_DEVICES += bx_seedone
++
+ define Device/glinet_gl-mt6000
+   DEVICE_VENDOR := GL.iNet
+   DEVICE_MODEL := GL-MT6000
+-- 
+2.47.3
+
