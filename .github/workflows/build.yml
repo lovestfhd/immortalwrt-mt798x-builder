@@ -67,6 +67,16 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
+      - name: Add Custom Packages
+        run: |
+          if [ -d "custom_packages" ]; then
+            echo "Copying custom packages to openwrt/package/custom..."
+            mkdir -p openwrt/package/custom
+            cp -rf custom_packages/* openwrt/package/custom/
+            # If replacing existing feed packages (e.g. tailscale), remove feed version to avoid duplicate package warnings/conflicts
+            rm -rf openwrt/feeds/packages/net/tailscale
+          fi
+
       - name: Apply Custom Patches
         run: |
           cd openwrt
