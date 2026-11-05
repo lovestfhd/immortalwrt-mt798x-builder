@@ -67,10 +67,20 @@ jobs:
           echo "src-git tailscale_community https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community.git;master" >> feeds.conf.default
           echo "src-git netspeedtest https://github.com/sirpdboy/netspeedtest.git;main" >> feeds.conf.default
 
-      - name: Update and Install Feeds
+      - name: Update Feeds
         run: |
           cd openwrt
           ./scripts/feeds update -a
+
+      - name: Upgrade Golang to 1.24
+        run: |
+          cd openwrt
+          rm -rf feeds/packages/lang/golang
+          git clone --depth 1 https://github.com/sbwml/packages_lang_golang -b 24.x feeds/packages/lang/golang
+
+      - name: Install Feeds
+        run: |
+          cd openwrt
           ./scripts/feeds install -a
 
       - name: Add Custom Packages
@@ -79,6 +89,7 @@ jobs:
             echo "Copying custom packages to openwrt/package/custom..."
             mkdir -p openwrt/package/custom
             cp -rf custom_packages/* openwrt/package/custom/
+            rm -rf openwrt/feeds/packages/net/tailscale
           fi
 
       - name: Apply Custom Patches
