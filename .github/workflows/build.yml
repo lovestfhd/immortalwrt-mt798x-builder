@@ -61,6 +61,12 @@ jobs:
         run: |
           git clone --depth 1 -b $REPO_BRANCH $REPO_URL openwrt
 
+      - name: Configure Feeds
+        run: |
+          cd openwrt
+          echo "src-git tailscale_community https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community.git;master" >> feeds.conf.default
+          echo "src-git netspeedtest https://github.com/sirpdboy/netspeedtest.git;main" >> feeds.conf.default
+
       - name: Update and Install Feeds
         run: |
           cd openwrt
@@ -73,7 +79,6 @@ jobs:
             echo "Copying custom packages to openwrt/package/custom..."
             mkdir -p openwrt/package/custom
             cp -rf custom_packages/* openwrt/package/custom/
-            # If replacing existing feed packages (e.g. tailscale), remove feed version to avoid duplicate package warnings/conflicts
             rm -rf openwrt/feeds/packages/net/tailscale
           fi
 
