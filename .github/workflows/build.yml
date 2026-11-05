@@ -79,7 +79,6 @@ jobs:
             echo "Copying custom packages to openwrt/package/custom..."
             mkdir -p openwrt/package/custom
             cp -rf custom_packages/* openwrt/package/custom/
-            rm -rf openwrt/feeds/packages/net/tailscale
           fi
 
       - name: Apply Custom Patches
